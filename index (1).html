@@ -1,0 +1,1705 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
+  <title>PES 3D Reaction Trajectories</title>
+
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+
+  <style>
+    :root {
+      --background: #050b14;
+      --panel: rgba(13, 28, 48, 0.95);
+      --panel-light: #172c49;
+      --border: rgba(255, 255, 255, 0.12);
+      --text: #edf7ff;
+      --muted: #9fb4c9;
+      --cyan: #35d0ff;
+      --yellow: #ffcf57;
+      --red: #ff4d6d;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      background:
+        radial-gradient(
+          circle at top left,
+          #15385d 0,
+          transparent 32%
+        ),
+        linear-gradient(135deg, #040912, #08182a);
+      font-family:
+        Arial,
+        "Noto Sans TC",
+        sans-serif;
+    }
+
+    header {
+      padding: 22px 28px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(3, 9, 18, 0.8);
+    }
+
+    header h1 {
+      margin: 0 0 8px;
+      font-size: clamp(1.6rem, 4vw, 2.7rem);
+    }
+
+    header p {
+      max-width: 1000px;
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    main {
+      display: grid;
+      grid-template-columns:
+        minmax(0, 1.4fr)
+        minmax(340px, 0.75fr);
+      gap: 18px;
+      padding: 18px;
+    }
+
+    .panel {
+      overflow: hidden;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: 0 14px 35px rgba(0, 0, 0, 0.28);
+    }
+
+    .panel-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .panel-title h2 {
+      margin: 0;
+      font-size: 1.05rem;
+    }
+
+    .badge {
+      padding: 5px 11px;
+      color: #03111b;
+      background: var(--cyan);
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: bold;
+    }
+
+    #surfacePlot {
+      width: 100%;
+      height: 670px;
+    }
+
+    .right-column {
+      display: grid;
+      gap: 18px;
+      align-content: start;
+    }
+
+    .molecule-stage {
+      position: relative;
+      height: 250px;
+      overflow: hidden;
+      background:
+        radial-gradient(
+          circle,
+          rgba(53, 208, 255, 0.13),
+          transparent 48%
+        ),
+        #06101d;
+    }
+
+    #moleculeCanvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    .atom-label {
+      position: absolute;
+      z-index: 2;
+      padding: 4px 8px;
+      color: white;
+      background: rgba(0, 0, 0, 0.65);
+      border-radius: 6px;
+      font-size: 0.78rem;
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+    }
+
+    .values {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      padding: 12px;
+      border-top: 1px solid var(--border);
+    }
+
+    .value-box {
+      padding: 10px 7px;
+      text-align: center;
+      background: var(--panel-light);
+      border-radius: 10px;
+    }
+
+    .value-box span {
+      display: block;
+      margin-bottom: 5px;
+      color: var(--muted);
+      font-size: 0.76rem;
+    }
+
+    .value-box strong {
+      color: var(--yellow);
+      font-size: 0.92rem;
+    }
+
+    .controls {
+      display: grid;
+      gap: 14px;
+      padding: 16px;
+    }
+
+    .mode-buttons {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    button {
+      padding: 10px 12px;
+      color: var(--text);
+      cursor: pointer;
+      background: #1a3455;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      transition:
+        transform 0.15s,
+        background 0.15s;
+    }
+
+    button:hover {
+      background: #28527d;
+      transform: translateY(-1px);
+    }
+
+    button.active {
+      color: #04111c;
+      background: var(--cyan);
+      border-color: var(--cyan);
+      font-weight: bold;
+    }
+
+    .primary-button {
+      color: #08131d;
+      background: var(--yellow);
+      font-weight: bold;
+    }
+
+    .control-row {
+      display: grid;
+      grid-template-columns: 90px 1fr 60px;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .control-row label {
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--cyan);
+    }
+
+    #contourPlot {
+      width: 100%;
+      height: 360px;
+    }
+
+    .description {
+      padding: 14px 16px;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+      line-height: 1.65;
+      font-size: 0.9rem;
+    }
+
+    .description strong {
+      color: white;
+    }
+
+    .coordinate-note {
+      padding: 12px 16px;
+      color: var(--muted);
+      background: rgba(0, 0, 0, 0.18);
+      border-top: 1px solid var(--border);
+      line-height: 1.6;
+      font-size: 0.84rem;
+    }
+
+    @media (max-width: 1050px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+
+      #surfacePlot {
+        height: 530px;
+      }
+    }
+
+    @media (max-width: 580px) {
+      header,
+      main {
+        padding: 12px;
+      }
+
+      .mode-buttons {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .values {
+        grid-template-columns: 1fr;
+      }
+
+      #surfacePlot {
+        height: 430px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>Potential Energy Surface Trajectories</h1>
+
+    <p>
+      三原子反應
+      <strong>A + BC → AB + C</strong>
+      的互動式位能面。修正版路徑分別對應原圖中的
+      C₁、C₂、C₃、C₄。
+    </p>
+  </header>
+
+  <main>
+    <!-- 左側：3D PES -->
+    <section class="panel">
+      <div class="panel-title">
+        <h2>3D Potential Energy Surface</h2>
+        <span class="badge">PES</span>
+      </div>
+
+      <div id="surfacePlot"></div>
+
+      <div class="coordinate-note">
+        水平座標為 R<sub>AB</sub>，垂直座標為
+        R<sub>BC</sub>。黃色曲線是完整軌跡，紅色球是目前系統狀態。
+      </div>
+    </section>
+
+    <div class="right-column">
+      <!-- 分子動畫 -->
+      <section class="panel">
+        <div class="panel-title">
+          <h2>Molecular Motion</h2>
+          <span id="modeBadge" class="badge">C₁</span>
+        </div>
+
+        <div class="molecule-stage">
+          <canvas id="moleculeCanvas"></canvas>
+
+          <span id="labelA" class="atom-label">A</span>
+          <span id="labelB" class="atom-label">B</span>
+          <span id="labelC" class="atom-label">C</span>
+        </div>
+
+        <div class="values">
+          <div class="value-box">
+            <span>AB bond distance</span>
+            <strong id="rabValue">RAB = 0.00 Å</strong>
+          </div>
+
+          <div class="value-box">
+            <span>BC bond distance</span>
+            <strong id="rbcValue">RBC = 0.00 Å</strong>
+          </div>
+
+          <div class="value-box">
+            <span>Potential energy</span>
+            <strong id="energyValue">V = 0.00</strong>
+          </div>
+        </div>
+      </section>
+
+      <!-- 控制器 -->
+      <section class="panel">
+        <div class="panel-title">
+          <h2>Trajectory Controls</h2>
+        </div>
+
+        <div class="controls">
+          <div class="mode-buttons">
+            <button
+              class="mode-button active"
+              data-mode="C1"
+            >
+              C₁
+            </button>
+
+            <button
+              class="mode-button"
+              data-mode="C2"
+            >
+              C₂
+            </button>
+
+            <button
+              class="mode-button"
+              data-mode="C3"
+            >
+              C₃
+            </button>
+
+            <button
+              class="mode-button"
+              data-mode="C4"
+            >
+              C₄
+            </button>
+          </div>
+
+          <button id="playButton" class="primary-button">
+            ▶ 播放動畫
+          </button>
+
+          <div class="control-row">
+            <label for="timeSlider">進度</label>
+
+            <input
+              id="timeSlider"
+              type="range"
+              min="0"
+              max="1000"
+              value="0"
+            >
+
+            <output id="timeOutput">0%</output>
+          </div>
+
+          <div class="control-row">
+            <label for="speedSlider">速度</label>
+
+            <input
+              id="speedSlider"
+              type="range"
+              min="0.2"
+              max="3"
+              step="0.1"
+              value="1"
+            >
+
+            <output id="speedOutput">1.0×</output>
+          </div>
+        </div>
+
+        <div
+          id="modeDescription"
+          class="description"
+        ></div>
+      </section>
+
+      <!-- 2D 等高線 -->
+      <section class="panel">
+        <div class="panel-title">
+          <h2>2D Contour Trajectory</h2>
+        </div>
+
+        <div id="contourPlot"></div>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    // ============================================================
+    // 一、基本參數
+    // ============================================================
+
+    const MIN_R = 0.72;
+    const MAX_R = 4.00;
+    const GRID_SIZE = 75;
+
+    /*
+     * 反應通道轉折點。
+     *
+     * 原圖中的 L 形位能谷大致在：
+     * 1. 反應物通道：R_AB 較短、R_BC 改變
+     * 2. 產物通道：R_BC 較短、R_AB 改變
+     */
+    const VALLEY_R = 1.08;
+
+    // ============================================================
+    // 二、PES 數學模型
+    // ============================================================
+
+    function morse(r, D = 2.8, a = 1.85, r0 = VALLEY_R) {
+      return D * Math.pow(
+        1 - Math.exp(-a * (r - r0)),
+        2
+      );
+    }
+
+    /*
+     * 建立類似原圖的 L 形反應谷。
+     *
+     * soft minimum 會把：
+     *   R_AB ≈ 1.08
+     * 與
+     *   R_BC ≈ 1.08
+     * 兩個谷連接起來。
+     */
+    function potential(rAB, rBC) {
+      const vAB = morse(rAB);
+      const vBC = morse(rBC);
+
+      const temperature = 0.42;
+
+      const valley =
+        -temperature *
+        Math.log(
+          Math.exp(-vAB / temperature) +
+          Math.exp(-vBC / temperature)
+        );
+
+      /*
+       * 在 L 形轉折附近加入小型能障，
+       * 使轉折區形成類似過渡狀態的鞍點。
+       */
+      const transitionBarrier =
+        1.10 *
+        Math.exp(
+          -(
+            Math.pow(rAB - 1.38, 2) / 0.14 +
+            Math.pow(rBC - 1.38, 2) / 0.14
+          )
+        );
+
+      /*
+       * 避免兩個鍵同時過短。
+       */
+      const shortRangeRepulsion =
+        2.4 *
+        Math.exp(
+          -(
+            Math.pow(rAB - 0.72, 2) / 0.055 +
+            Math.pow(rBC - 0.72, 2) / 0.055
+          )
+        );
+
+      /*
+       * 右上區域代表兩條鍵都拉長，
+       * 因而提高位能。
+       */
+      const dissociationRise =
+        0.055 *
+        Math.pow(
+          Math.max(0, rAB + rBC - 5.0),
+          2
+        );
+
+      return (
+        valley +
+        transitionBarrier +
+        shortRangeRepulsion +
+        dissociationRise +
+        0.35
+      );
+    }
+
+    // ============================================================
+    // 三、數學工具
+    // ============================================================
+
+    function clamp(value, minimum, maximum) {
+      return Math.max(
+        minimum,
+        Math.min(maximum, value)
+      );
+    }
+
+    function smoothStep(t) {
+      t = clamp(t, 0, 1);
+      return t * t * (3 - 2 * t);
+    }
+
+    function smootherStep(t) {
+      t = clamp(t, 0, 1);
+
+      return (
+        t * t * t *
+        (
+          t * (t * 6 - 15) + 10
+        )
+      );
+    }
+
+    /*
+     * 將兩個數值平滑內插。
+     */
+    function mix(start, end, t) {
+      return start + (end - start) * t;
+    }
+
+    /*
+     * 用於分段軌跡。
+     */
+    function sectionProgress(t, start, end) {
+      return clamp(
+        (t - start) / (end - start),
+        0,
+        1
+      );
+    }
+
+    // ============================================================
+    // 四、四條修正後的軌跡
+    // ============================================================
+
+    /*
+     * C1：
+     * 沿反應物谷下降，平滑轉彎，再沿產物谷前進。
+     *
+     * 外觀對應原圖 (a)：
+     * 幾乎沿著 L 形谷底移動，沒有明顯振動。
+     */
+    function trajectoryC1(t) {
+      let rAB;
+      let rBC;
+
+      if (t < 0.44) {
+        const u = smootherStep(
+          sectionProgress(t, 0.00, 0.44)
+        );
+
+        // 沿垂直反應物通道向下。
+        rAB = VALLEY_R;
+        rBC = mix(3.75, 1.38, u);
+      } else if (t < 0.61) {
+        const u = smootherStep(
+          sectionProgress(t, 0.44, 0.61)
+        );
+
+        /*
+         * 通過轉折區。
+         * R_AB 稍微增加，R_BC 稍微減少。
+         */
+        rAB = mix(VALLEY_R, 1.38, u);
+        rBC = mix(1.38, VALLEY_R, u);
+      } else {
+        const u = smootherStep(
+          sectionProgress(t, 0.61, 1.00)
+        );
+
+        // 沿水平產物通道向右。
+        rAB = mix(1.38, 3.75, u);
+        rBC = VALLEY_R;
+      }
+
+      return { rAB, rBC };
+    }
+
+    /*
+     * C2：
+     * 反應物通道中的大幅碰撞振動
+     * → 通過轉折
+     * → 產物通道中的振動。
+     *
+     * 對應原圖 (b)。
+     */
+    function trajectoryC2(t) {
+      let rAB;
+      let rBC;
+
+      if (t < 0.47) {
+        const u = sectionProgress(
+          t,
+          0.00,
+          0.47
+        );
+
+        const s = smootherStep(u);
+
+        /*
+         * 垂直向下移動。
+         * 水平方向的大幅振盪形成原圖左上方的迴圈。
+         */
+        const envelope =
+          0.22 +
+          0.46 * Math.sin(Math.PI * u);
+
+        rAB =
+          VALLEY_R +
+          envelope *
+          Math.sin(5.3 * Math.PI * u);
+
+        rBC =
+          mix(3.78, 1.42, s) +
+          0.13 *
+          Math.cos(5.3 * Math.PI * u);
+      } else if (t < 0.61) {
+        const u = smootherStep(
+          sectionProgress(t, 0.47, 0.61)
+        );
+
+        // 經過轉折區。
+        rAB = mix(1.10, 1.48, u);
+        rBC = mix(1.43, 1.10, u);
+      } else {
+        const u = sectionProgress(
+          t,
+          0.61,
+          1.00
+        );
+
+        const s = smootherStep(u);
+
+        /*
+         * 沿產物通道向右。
+         * 垂直振盪形成右下方的多個迴圈。
+         */
+        const envelope =
+          0.38 *
+          (1 - 0.40 * u);
+
+        rAB =
+          mix(1.48, 3.74, s) +
+          0.10 *
+          Math.cos(7 * Math.PI * u);
+
+        rBC =
+          VALLEY_R +
+          envelope *
+          Math.sin(7 * Math.PI * u);
+      }
+
+      return {
+        rAB: clamp(rAB, MIN_R, MAX_R),
+        rBC: clamp(rBC, MIN_R, MAX_R)
+      };
+    }
+
+    /*
+     * C3：
+     * 從轉折區出發，沿產物通道運動。
+     * 振幅迅速衰減。
+     *
+     * 對應原圖 (c)。
+     */
+    function trajectoryC3(t) {
+      const s = smootherStep(t);
+
+      const rAB = mix(1.30, 3.82, s);
+
+      /*
+       * 振幅從約 0.28 Å 逐漸衰減。
+       * t = 0 時從轉折區開始。
+       */
+      const amplitude =
+        0.29 *
+        Math.exp(-2.7 * t);
+
+      const rBC =
+        VALLEY_R +
+        amplitude *
+        Math.sin(8 * Math.PI * t);
+
+      return {
+        rAB: clamp(rAB, MIN_R, MAX_R),
+        rBC: clamp(rBC, MIN_R, MAX_R)
+      };
+    }
+
+    /*
+     * C4：
+     * 進入產物通道後，維持多次明顯振動。
+     *
+     * 對應原圖 (d)：
+     * 軌跡在右下方形成連續橢圓形迴圈。
+     */
+    function trajectoryC4(t) {
+      const s = smootherStep(t);
+
+      /*
+       * 水平方向持續往右，
+       * 再加上一點相位差，形成封閉感較強的迴圈。
+       */
+      const rAB =
+        mix(1.28, 3.88, s) +
+        0.13 *
+        Math.cos(12 * Math.PI * t);
+
+      /*
+       * 垂直方向維持較大的振幅。
+       * 最後才稍微衰減，避免撞到圖的邊界。
+       */
+      const amplitude =
+        0.39 *
+        (1 - 0.18 * t);
+
+      const rBC =
+        VALLEY_R +
+        amplitude *
+        Math.sin(12 * Math.PI * t);
+
+      return {
+        rAB: clamp(rAB, MIN_R, MAX_R),
+        rBC: clamp(rBC, MIN_R, MAX_R)
+      };
+    }
+
+    /*
+     * 根據模式選擇軌跡。
+     */
+    function getTrajectory(mode, t) {
+      switch (mode) {
+        case "C1":
+          return trajectoryC1(t);
+
+        case "C2":
+          return trajectoryC2(t);
+
+        case "C3":
+          return trajectoryC3(t);
+
+        case "C4":
+          return trajectoryC4(t);
+
+        default:
+          return trajectoryC1(t);
+      }
+    }
+
+    // ============================================================
+    // 五、模式說明
+    // ============================================================
+
+    const modeInformation = {
+      C1: {
+        label: "C₁",
+        title: "C₁：平滑反應路徑",
+        description:
+          "系統沿反應物谷下降，經過轉折區，再平滑進入產物谷。" +
+          "這條路徑接近原圖中沒有明顯振動的最低能量反應路徑。"
+      },
+
+      C2: {
+        label: "C₂",
+        title: "C₂：反應物與產物雙側振動",
+        description:
+          "系統在反應物通道先產生大幅碰撞振動，通過轉折區後，" +
+          "在產物通道繼續振動，對應原圖左上與右下的兩組迴圈。"
+      },
+
+      C3: {
+        label: "C₃",
+        title: "C₃：衰減的產物振動",
+        description:
+          "系統從轉折區進入產物通道，產物鍵長先振動，" +
+          "之後振幅逐漸衰減，軌跡逐漸靠近谷底。"
+      },
+
+      C4: {
+        label: "C₄",
+        title: "C₄：持續的產物振動",
+        description:
+          "系統進入產物通道後保持明顯振動，" +
+          "因此在等高線圖上形成多個連續的橢圓形迴圈。"
+      }
+    };
+
+    // ============================================================
+    // 六、建立 PES 網格
+    // ============================================================
+
+    const rValues = [];
+    const zValues = [];
+
+    for (let i = 0; i < GRID_SIZE; i++) {
+      const value =
+        MIN_R +
+        (MAX_R - MIN_R) *
+        i /
+        (GRID_SIZE - 1);
+
+      rValues.push(value);
+    }
+
+    for (let rowIndex = 0; rowIndex < GRID_SIZE; rowIndex++) {
+      const row = [];
+      const rBC = rValues[rowIndex];
+
+      for (
+        let columnIndex = 0;
+        columnIndex < GRID_SIZE;
+        columnIndex++
+      ) {
+        const rAB = rValues[columnIndex];
+
+        row.push(
+          potential(rAB, rBC)
+        );
+      }
+
+      zValues.push(row);
+    }
+
+    // ============================================================
+    // 七、取樣完整軌跡
+    // ============================================================
+
+    function sampleTrajectory(mode, count = 360) {
+      const x = [];
+      const y = [];
+      const z = [];
+
+      for (let i = 0; i < count; i++) {
+        const t = i / (count - 1);
+        const point = getTrajectory(mode, t);
+        const energy = potential(
+          point.rAB,
+          point.rBC
+        );
+
+        x.push(point.rAB);
+        y.push(point.rBC);
+
+        /*
+         * 加上一點高度，避免黃色線被 PES 曲面遮住。
+         */
+        z.push(energy + 0.08);
+      }
+
+      return { x, y, z };
+    }
+
+    // ============================================================
+    // 八、3D PES
+    // ============================================================
+
+    const surfaceTrace = {
+      type: "surface",
+      x: rValues,
+      y: rValues,
+      z: zValues,
+      colorscale: "Viridis",
+      opacity: 0.87,
+      showscale: true,
+
+      colorbar: {
+        title: "Energy",
+        thickness: 13,
+        len: 0.68
+      },
+
+      contours: {
+        z: {
+          show: true,
+          usecolormap: true,
+          project: {
+            z: true
+          }
+        }
+      },
+
+      hovertemplate:
+        "RAB = %{x:.2f} Å<br>" +
+        "RBC = %{y:.2f} Å<br>" +
+        "V = %{z:.2f}" +
+        "<extra></extra>"
+    };
+
+    const trajectoryTrace3D = {
+      type: "scatter3d",
+      mode: "lines",
+      x: [],
+      y: [],
+      z: [],
+
+      line: {
+        color: "#ffcf57",
+        width: 8
+      },
+
+      name: "Trajectory",
+      hoverinfo: "skip"
+    };
+
+    const movingPointTrace3D = {
+      type: "scatter3d",
+      mode: "markers",
+      x: [],
+      y: [],
+      z: [],
+
+      marker: {
+        color: "#ff4d6d",
+        size: 7,
+
+        line: {
+          color: "#ffffff",
+          width: 2
+        }
+      },
+
+      name: "System state",
+
+      hovertemplate:
+        "目前系統狀態" +
+        "<extra></extra>"
+    };
+
+    const surfaceLayout = {
+      margin: {
+        l: 0,
+        r: 0,
+        t: 0,
+        b: 0
+      },
+
+      paper_bgcolor: "#07111f",
+      plot_bgcolor: "#07111f",
+
+      font: {
+        color: "#edf7ff"
+      },
+
+      legend: {
+        x: 0.02,
+        y: 0.98,
+        bgcolor: "rgba(0,0,0,0.38)"
+      },
+
+      scene: {
+        bgcolor: "#07111f",
+
+        xaxis: {
+          title: "RAB (Å)",
+          range: [MIN_R, MAX_R],
+          gridcolor: "rgba(255,255,255,0.14)"
+        },
+
+        yaxis: {
+          title: "RBC (Å)",
+          range: [MIN_R, MAX_R],
+          gridcolor: "rgba(255,255,255,0.14)"
+        },
+
+        zaxis: {
+          title: "Potential energy",
+          gridcolor: "rgba(255,255,255,0.14)"
+        },
+
+        /*
+         * 讓視角接近投影片中的 3D PES。
+         */
+        camera: {
+          eye: {
+            x: 1.50,
+            y: 1.55,
+            z: 1.12
+          }
+        },
+
+        aspectratio: {
+          x: 1,
+          y: 1,
+          z: 0.75
+        }
+      }
+    };
+
+    const plotConfiguration = {
+      responsive: true,
+      displaylogo: false,
+      scrollZoom: true
+    };
+
+    Plotly.newPlot(
+      "surfacePlot",
+      [
+        surfaceTrace,
+        trajectoryTrace3D,
+        movingPointTrace3D
+      ],
+      surfaceLayout,
+      plotConfiguration
+    );
+
+    // ============================================================
+    // 九、2D 等高線
+    // ============================================================
+
+    const contourTrace = {
+      type: "contour",
+      x: rValues,
+      y: rValues,
+      z: zValues,
+      colorscale: "Viridis",
+      showscale: false,
+
+      contours: {
+        coloring: "lines",
+        showlabels: false,
+        start: 0.3,
+        end: 3.5,
+        size: 0.22
+      },
+
+      line: {
+        width: 1.25
+      },
+
+      hovertemplate:
+        "RAB = %{x:.2f} Å<br>" +
+        "RBC = %{y:.2f} Å<br>" +
+        "V = %{z:.2f}" +
+        "<extra></extra>"
+    };
+
+    const trajectoryTrace2D = {
+      type: "scatter",
+      mode: "lines",
+      x: [],
+      y: [],
+
+      line: {
+        color: "#ffcf57",
+        width: 3
+      },
+
+      name: "Trajectory",
+      hoverinfo: "skip"
+    };
+
+    const movingPointTrace2D = {
+      type: "scatter",
+      mode: "markers",
+      x: [],
+      y: [],
+
+      marker: {
+        color: "#ff4d6d",
+        size: 11,
+
+        line: {
+          color: "#ffffff",
+          width: 2
+        }
+      },
+
+      name: "Current state"
+    };
+
+    const contourLayout = {
+      margin: {
+        l: 58,
+        r: 18,
+        t: 12,
+        b: 52
+      },
+
+      paper_bgcolor: "#07111f",
+      plot_bgcolor: "#07111f",
+
+      font: {
+        color: "#edf7ff"
+      },
+
+      showlegend: false,
+
+      xaxis: {
+        title: "RAB (Å)",
+        range: [MIN_R, MAX_R],
+        gridcolor: "rgba(255,255,255,0.08)",
+        zeroline: false
+      },
+
+      yaxis: {
+        title: "RBC (Å)",
+        range: [MIN_R, MAX_R],
+        gridcolor: "rgba(255,255,255,0.08)",
+        zeroline: false,
+        scaleanchor: "x",
+        scaleratio: 1
+      }
+    };
+
+    Plotly.newPlot(
+      "contourPlot",
+      [
+        contourTrace,
+        trajectoryTrace2D,
+        movingPointTrace2D
+      ],
+      contourLayout,
+      plotConfiguration
+    );
+
+    // ============================================================
+    // 十、Canvas 分子模型
+    // ============================================================
+
+    const canvas =
+      document.getElementById("moleculeCanvas");
+
+    const context =
+      canvas.getContext("2d");
+
+    const labelA =
+      document.getElementById("labelA");
+
+    const labelB =
+      document.getElementById("labelB");
+
+    const labelC =
+      document.getElementById("labelC");
+
+    function resizeCanvas() {
+      const ratio =
+        window.devicePixelRatio || 1;
+
+      const rectangle =
+        canvas.getBoundingClientRect();
+
+      canvas.width =
+        rectangle.width * ratio;
+
+      canvas.height =
+        rectangle.height * ratio;
+
+      context.setTransform(
+        ratio,
+        0,
+        0,
+        ratio,
+        0,
+        0
+      );
+    }
+
+    function positionLabel(label, x, y) {
+      label.style.left = `${x}px`;
+      label.style.top = `${y}px`;
+    }
+
+    function drawBond(
+      x1,
+      y1,
+      x2,
+      y2,
+      strength
+    ) {
+      const gradient =
+        context.createLinearGradient(
+          x1,
+          y1,
+          x2,
+          y2
+        );
+
+      gradient.addColorStop(
+        0,
+        `rgba(255,255,255,${strength})`
+      );
+
+      gradient.addColorStop(
+        0.5,
+        `rgba(53,208,255,${strength})`
+      );
+
+      gradient.addColorStop(
+        1,
+        `rgba(255,255,255,${strength})`
+      );
+
+      context.strokeStyle = gradient;
+      context.lineWidth = 3 + 7 * strength;
+      context.lineCap = "round";
+
+      context.beginPath();
+      context.moveTo(x1, y1);
+      context.lineTo(x2, y2);
+      context.stroke();
+    }
+
+    function drawAtom(
+      x,
+      y,
+      radius,
+      color,
+      glowColor
+    ) {
+      context.save();
+
+      context.shadowBlur = 24;
+      context.shadowColor = glowColor;
+
+      const gradient =
+        context.createRadialGradient(
+          x - radius * 0.35,
+          y - radius * 0.35,
+          radius * 0.08,
+          x,
+          y,
+          radius
+        );
+
+      gradient.addColorStop(0, "#ffffff");
+      gradient.addColorStop(0.28, color);
+      gradient.addColorStop(1, "#101827");
+
+      context.fillStyle = gradient;
+
+      context.beginPath();
+      context.arc(
+        x,
+        y,
+        radius,
+        0,
+        Math.PI * 2
+      );
+      context.fill();
+
+      context.restore();
+    }
+
+    function drawMolecule(rAB, rBC) {
+      const width = canvas.clientWidth;
+      const height = canvas.clientHeight;
+
+      context.clearRect(
+        0,
+        0,
+        width,
+        height
+      );
+
+      const centerY = height / 2;
+      const rawScale = Math.min(
+        72,
+        width / 8.3
+      );
+
+      /*
+       * B 原子放在畫面中央。
+       * A 位於 B 左側，C 位於 B 右側。
+       */
+      const rawXB = width / 2;
+      const rawXA = rawXB - rAB * rawScale;
+      const rawXC = rawXB + rBC * rawScale;
+
+      const left =
+        Math.min(rawXA, rawXB, rawXC);
+
+      const right =
+        Math.max(rawXA, rawXB, rawXC);
+
+      const moleculeWidth = right - left;
+      const availableWidth = width - 82;
+
+      let displayScale = 1;
+
+      if (moleculeWidth > availableWidth) {
+        displayScale =
+          availableWidth / moleculeWidth;
+      }
+
+      const xB = width / 2;
+
+      const xA =
+        width / 2 +
+        (rawXA - width / 2) *
+        displayScale;
+
+      const xC =
+        width / 2 +
+        (rawXC - width / 2) *
+        displayScale;
+
+      /*
+       * 接近平衡距離時，鍵線較亮。
+       */
+      const abBondStrength =
+        Math.exp(
+          -Math.pow(rAB - VALLEY_R, 2) / 0.34
+        );
+
+      const bcBondStrength =
+        Math.exp(
+          -Math.pow(rBC - VALLEY_R, 2) / 0.34
+        );
+
+      drawBond(
+        xA,
+        centerY,
+        xB,
+        centerY,
+        0.06 + 0.94 * abBondStrength
+      );
+
+      drawBond(
+        xB,
+        centerY,
+        xC,
+        centerY,
+        0.06 + 0.94 * bcBondStrength
+      );
+
+      drawAtom(
+        xA,
+        centerY,
+        22,
+        "#ff657b",
+        "#ff4d6d"
+      );
+
+      drawAtom(
+        xB,
+        centerY,
+        24,
+        "#55d8ff",
+        "#35d0ff"
+      );
+
+      drawAtom(
+        xC,
+        centerY,
+        22,
+        "#ffda72",
+        "#ffcf57"
+      );
+
+      positionLabel(
+        labelA,
+        xA,
+        centerY - 40
+      );
+
+      positionLabel(
+        labelB,
+        xB,
+        centerY - 44
+      );
+
+      positionLabel(
+        labelC,
+        xC,
+        centerY - 40
+      );
+    }
+
+    // ============================================================
+    // 十一、動畫狀態
+    // ============================================================
+
+    let currentMode = "C1";
+    let progress = 0;
+    let isPlaying = false;
+    let playbackSpeed = 1;
+    let previousTime = performance.now();
+
+    const playButton =
+      document.getElementById("playButton");
+
+    const timeSlider =
+      document.getElementById("timeSlider");
+
+    const timeOutput =
+      document.getElementById("timeOutput");
+
+    const speedSlider =
+      document.getElementById("speedSlider");
+
+    const speedOutput =
+      document.getElementById("speedOutput");
+
+    const modeBadge =
+      document.getElementById("modeBadge");
+
+    const modeDescription =
+      document.getElementById("modeDescription");
+
+    const rabValue =
+      document.getElementById("rabValue");
+
+    const rbcValue =
+      document.getElementById("rbcValue");
+
+    const energyValue =
+      document.getElementById("energyValue");
+
+    // ============================================================
+    // 十二、更新完整軌跡
+    // ============================================================
+
+    function updateCompleteTrajectory() {
+      const path =
+        sampleTrajectory(currentMode);
+
+      Plotly.restyle(
+        "surfacePlot",
+        {
+          x: [path.x],
+          y: [path.y],
+          z: [path.z]
+        },
+        [1]
+      );
+
+      Plotly.restyle(
+        "contourPlot",
+        {
+          x: [path.x],
+          y: [path.y]
+        },
+        [1]
+      );
+    }
+
+    function updateModeDescription() {
+      const information =
+        modeInformation[currentMode];
+
+      modeBadge.textContent =
+        information.label;
+
+      modeDescription.innerHTML = `
+        <strong>${information.title}</strong><br>
+        ${information.description}
+      `;
+    }
+
+    // ============================================================
+    // 十三、更新動畫目前狀態
+    // ============================================================
+
+    function updateSystem() {
+      const point =
+        getTrajectory(
+          currentMode,
+          progress
+        );
+
+      const energy =
+        potential(
+          point.rAB,
+          point.rBC
+        );
+
+      drawMolecule(
+        point.rAB,
+        point.rBC
+      );
+
+      rabValue.textContent =
+        `RAB = ${point.rAB.toFixed(2)} Å`;
+
+      rbcValue.textContent =
+        `RBC = ${point.rBC.toFixed(2)} Å`;
+
+      energyValue.textContent =
+        `V = ${energy.toFixed(2)}`;
+
+      timeSlider.value =
+        Math.round(progress * 1000);
+
+      timeOutput.textContent =
+        `${Math.round(progress * 100)}%`;
+
+      Plotly.restyle(
+        "surfacePlot",
+        {
+          x: [[point.rAB]],
+          y: [[point.rBC]],
+          z: [[energy + 0.13]]
+        },
+        [2]
+      );
+
+      Plotly.restyle(
+        "contourPlot",
+        {
+          x: [[point.rAB]],
+          y: [[point.rBC]]
+        },
+        [2]
+      );
+    }
+
+    // ============================================================
+    // 十四、切換 C1-C4
+    // ============================================================
+
+    function selectMode(mode) {
+      currentMode = mode;
+      progress = 0;
+      isPlaying = false;
+
+      playButton.textContent =
+        "▶ 播放動畫";
+
+      document
+        .querySelectorAll(".mode-button")
+        .forEach(button => {
+          button.classList.toggle(
+            "active",
+            button.dataset.mode === mode
+          );
+        });
+
+      updateCompleteTrajectory();
+      updateModeDescription();
+      updateSystem();
+    }
+
+    document
+      .querySelectorAll(".mode-button")
+      .forEach(button => {
+        button.addEventListener(
+          "click",
+          () => {
+            selectMode(
+              button.dataset.mode
+            );
+          }
+        );
+      });
+
+    // ============================================================
+    // 十五、播放與滑桿
+    // ============================================================
+
+    playButton.addEventListener(
+      "click",
+      () => {
+        if (progress >= 1) {
+          progress = 0;
+        }
+
+        isPlaying = !isPlaying;
+
+        playButton.textContent =
+          isPlaying
+            ? "⏸ 暫停動畫"
+            : "▶ 播放動畫";
+      }
+    );
+
+    timeSlider.addEventListener(
+      "input",
+      event => {
+        progress =
+          Number(event.target.value) / 1000;
+
+        updateSystem();
+      }
+    );
+
+    speedSlider.addEventListener(
+      "input",
+      event => {
+        playbackSpeed =
+          Number(event.target.value);
+
+        speedOutput.textContent =
+          `${playbackSpeed.toFixed(1)}×`;
+      }
+    );
+
+    // ============================================================
+    // 十六、主動畫迴圈
+    // ============================================================
+
+    function animationLoop(currentTime) {
+      const deltaTime =
+        (currentTime - previousTime) / 1000;
+
+      previousTime = currentTime;
+
+      if (isPlaying) {
+        /*
+         * 播放速度 1× 時，
+         * 約 8 秒完成一次軌跡。
+         */
+        progress +=
+          deltaTime *
+          playbackSpeed /
+          8;
+
+        if (progress >= 1) {
+          progress = 1;
+          isPlaying = false;
+
+          playButton.textContent =
+            "↻ 重新播放";
+        }
+
+        updateSystem();
+      }
+
+      requestAnimationFrame(
+        animationLoop
+      );
+    }
+
+    // ============================================================
+    // 十七、視窗尺寸改變
+    // ============================================================
+
+    window.addEventListener(
+      "resize",
+      () => {
+        resizeCanvas();
+        updateSystem();
+      }
+    );
+
+    // ============================================================
+    // 十八、初始化
+    // ============================================================
+
+    resizeCanvas();
+    updateCompleteTrajectory();
+    updateModeDescription();
+    updateSystem();
+
+    requestAnimationFrame(
+      animationLoop
+    );
+  </script>
+</body>
+</html>
